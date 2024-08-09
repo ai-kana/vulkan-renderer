@@ -1,4 +1,4 @@
-OUT := vl
+OUT := vl.out
 CC := gcc
 LIBS := -lglfw -lvulkan
 FLAGS := -Wall -Wextra -std=c99 -O2 -g
@@ -6,7 +6,7 @@ SHADER := shaders
 
 .PHONY: clean shader mk_shader
 
-$(OUT): *.c
+$(OUT): *.c | shader
 	$(CC) $(FLAGS) $(LIBS) -o $@ $^
 
 shader: mk_shader shaders/vert.spv shaders/frag.spv
