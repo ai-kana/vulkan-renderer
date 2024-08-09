@@ -1,4 +1,4 @@
-OUT := vl.out
+OUT := vl
 CC := gcc
 LIBS := -lglfw -lvulkan
 FLAGS := -Wall -Wextra -std=c99 -O2 -g

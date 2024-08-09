@@ -13,6 +13,52 @@ const struct vertex vertices[VERTICES_SIZE] = {
 VkBuffer vertex_buffer;
 VkDeviceMemory vertex_buffer_memory;
 
+static uint32_t find_memory_type(uint32_t type_filter, VkMemoryPropertyFlags flags) {
+    VkPhysicalDeviceMemoryProperties memory_properties;
+    vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
+    for (uint32_t i = 0; i < memory_properties.memoryTypeCount; i++) {
+        if (!(type_filter & (1 << i))) {
+            continue;
+        }
+
+        if ((memory_properties.memoryTypes[i].propertyFlags & flags) == flags) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+static VkResult create_buffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer* buffer, VkDeviceMemory* buffer_memory) {
+    VkBufferCreateInfo create_info = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size = size,
+        .usage = usage,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE
+    };
+
+    VkResult result = vkCreateBuffer(logical_device, &create_info, NULL, buffer);
+    if (result != VK_SUCCESS) {
+        return result;
+    }
+
+    VkMemoryRequirements memory_requirements;
+    vkGetBufferMemoryRequirements(logical_device, *buffer, &memory_requirements);
+
+    VkMemoryAllocateInfo allocate_info = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize = memory_requirements.size,
+        .memoryTypeIndex = find_memory_type(memory_requirements.memoryTypeBits, properties)
+    };
+
+    result = vkAllocateMemory(logical_device, &allocate_info, NULL, buffer_memory);
+    if (result != VK_SUCCESS) {
+        return result;
+    }
+
+    return vkBindBufferMemory(logical_device, vertex_buffer, vertex_buffer_memory, 0);
+}
+
 VkVertexInputBindingDescription get_binding_description() {
     VkVertexInputBindingDescription description;
     description.binding = 0;
@@ -39,56 +85,19 @@ VkVertexInputAttributeDescription* get_attribute_description(uint32_t* size) {
     return description;
 }
 
-static uint32_t find_memory_type(uint32_t type_filter, VkMemoryPropertyFlags flags) {
-    VkPhysicalDeviceMemoryProperties memory_properties;
-    vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
-    for (uint32_t i = 0; i < memory_properties.memoryTypeCount; i++) {
-        if (!(type_filter & (1 << i))) {
-            continue;
-        }
-
-        if ((memory_properties.memoryTypes[i].propertyFlags & flags) == flags) {
-            return i;
-        }
-    }
-
-    return -1;
-}
-
 VkResult create_vertex_buffer() {
-    VkBufferCreateInfo create_info = {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size = sizeof(vertices[0]) * VERTICES_SIZE,
-        .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE
-    };
-
-    VkResult result =  vkCreateBuffer(logical_device, &create_info, NULL, &vertex_buffer);
-    if (result != VK_SUCCESS) {
-        return result;
-    }
-
-    VkMemoryRequirements memory_requirements;
-    vkGetBufferMemoryRequirements(logical_device, vertex_buffer, &memory_requirements);
-
     VkMemoryPropertyFlags property_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    VkMemoryAllocateInfo allocate_info = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize = memory_requirements.size,
-        .memoryTypeIndex = find_memory_type(memory_requirements.memoryTypeBits, property_flags)
-    };
+    VkDeviceSize buffer_size = sizeof(vertices[0]) * VERTICES_SIZE;
 
-    result = vkAllocateMemory(logical_device, &allocate_info, NULL, &vertex_buffer_memory);
+    VkResult result = create_buffer(buffer_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, property_flags, &vertex_buffer, &vertex_buffer_memory);
     if (result != VK_SUCCESS) {
         return result;
     }
-
-    vkBindBufferMemory(logical_device, vertex_buffer, vertex_buffer_memory, 0);
 
     void* data;
-    vkMapMemory(logical_device, vertex_buffer_memory, 0, create_info.size, 0, &data);
+    vkMapMemory(logical_device, vertex_buffer_memory, 0, buffer_size, 0, &data);
     {
-        memcpy(data, vertices, create_info.size);
+        memcpy(data, vertices, buffer_size);
     }
     vkUnmapMemory(logical_device, vertex_buffer_memory);
 
